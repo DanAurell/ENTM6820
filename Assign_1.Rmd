@@ -1,0 +1,57 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# Question 1
+*You type code in the Source window. You can also type code directly in the Console if you just need to run some code and don't need to save it.
+*The results of code gets outputted in the Console (or below a chunk in the Source if you're working in an RMarkdown)
+*Plots are displayed in the Plots tab of the bottom right pane (or below an RMarkdown chunk)
+*The global environment is all R objects that you've made - and which are available to call. Note that you can call some objects like "cars" from within base r or from packages without them being in the environment.
+*On a Mac, you can access a help file for a function by writing the function name and using the shortcut Fn+F1. Alternatively running the code "?function".
+*An R package is a collection of functions. By installing and loading a whole package with just two commands you can get a bunch of related functions available. Packages also include documentation and often contain data for demonstration purposes.
+*A function is a piece of code that does something. Once you save code as a function, you can call that function instead of the whole code for doing that thing. If objects are nouns, functions are verbs. It usually does something to an object. Within the function, "arguments" specify the details of how you want the function to behave.
+*To see which packages are installed and loaded you can go to the "packages" pane in RStudio. The names of installed packages will be visible and loaded ones will have a checkbox ticked.
+*The working directory is somehow the reference location for an R session. Say you have a file called "data.csv" you want to read in. If it is in your working directory, you don't need to specify the whole file path but rather just the file name. By running the code `getwd()` you can check what is the current working directory.
+
+# Question 2
+Once you have linked Git, RStudio and Github, the way to set up a version-controlled R project is to:
+1) File > New Project...
+2) Select version controlled project and select Git for version control
+4) Specify the folder location for the project
+
+
+# Question 3
+*A vector is an object that organizes data items into a one-dimensional configuration. It's like a single column of a spreadsheet where you have item #1 through (length of vector)
+*A dataframe is like a spreadsheet for R, where each column is of a particular data type
+*A matrix is again like a spreadsheet for R, but all the data items must be of the same data type
+
+# Question 4
+
+```{r}
+set.seed(42)
+z <- runif(min = -100, max = 500, 200)
+mean(z)
+sd(z)
+tf <- z>1
+
+df <- data.frame(z,tf)
+
+colnames(df) <- c("z", "zlog")
+
+df$zsquared <- (df$z)^2
+
+# I think the prompt was reversed. Here I'm subsetting to include any rows where zsquared is either: below 10, or above 100
+df[df$zsquared>100 | df$zsquared<10,]
+```
+
+# Question 5 and 6
+## I will read in the Tips code and use these packages to analyze the data
+
+```{r}
+library(tidyverse) # loads ggplot, dplyr, and purrr
+library(lme4)
+library(emmeans)
+```
+
+
