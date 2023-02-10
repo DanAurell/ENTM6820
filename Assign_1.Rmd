@@ -54,4 +54,21 @@ library(lme4)
 library(emmeans)
 ```
 
+```{r}
+datum <- read.csv("./data/TipsR.csv")
+
+head(datum)
+View(datum)
+
+```
+
+```{r}
+datum %>% 
+  ggplot(aes(y = Tip, x = Total, color = Gender)) +
+  geom_point() +
+  geom_abline(slope = 0.2, intercept = 0)
+  
+```
+
+
 
