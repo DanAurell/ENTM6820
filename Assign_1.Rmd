@@ -62,6 +62,7 @@ View(datum)
 
 ```
 
+## ggplot
 ```{r}
 datum %>% 
   ggplot(aes(y = Tip, x = Total, color = Gender)) +
@@ -69,6 +70,32 @@ datum %>%
   geom_abline(slope = 0.2, intercept = 0)
   
 ```
+
+## Manage data with dplyr tools
+
+```{r}
+
+# Not dplyr
+datum$Gender <- str_replace(datum$Gender, "\\.", NA_character_)
+datum$Gender <- str_replace(datum$Gender, "M", "m")
+# I did visually check that this had the intended replacement
+
+# dplyr to summarize the number of male and female rows per school
+datum %>% 
+  filter(!is.na(Gender)) %>% 
+  group_by(School, Gender) %>% 
+  summarize(n = n())
+
+
+
+
+
+```
+
+
+
+
+
 
 
 
