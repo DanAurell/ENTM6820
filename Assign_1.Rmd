@@ -89,10 +89,35 @@ datum %>%
 
 
 
+# Imagine that the letter (A-G) in front of Delivery specifies a Delivery team (made up of 1 male and 1 female)
+
+# Then all A and f servers must be one individual and all A and m servers must be a second individual
+# This would let us generate an ID to use as a random effect
+
+# Say the research question is: is there a difference between
+
+
+
+
+
+
+
+
+
+# dplyr to save an object to use for analysis
+datum2 <- datum %>% 
+  filter(!is.na(Gender))
+
 
 ```
 
 
+
+
+## lme4
+```{r}
+lme
+```
 
 
 
