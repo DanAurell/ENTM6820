@@ -1,0 +1,18 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+# General notes
+
+## Tuesday 2023-02-14
+ggpubr is a package worth considering using: publication-ready plots
+
+How to find packages not listed in normal CRAN
+- e.g., on repository Bioconductor
+
+
+```{r}
+getwd()
+```
+
