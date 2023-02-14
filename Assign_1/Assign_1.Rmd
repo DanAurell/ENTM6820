@@ -3,6 +3,8 @@ title: "R Notebook"
 output: html_notebook
 ---
 
+getwd()
+
 # Question 1
 *You type code in the Source window. You can also type code directly in the Console if you just need to run some code and don't need to save it.
 *The results of code gets outputted in the Console (or below a chunk in the Source if you're working in an RMarkdown)
@@ -55,7 +57,7 @@ library(emmeans)
 ```
 
 ```{r}
-datum <- read.csv("./data/TipsR.csv")
+datum <- read.csv("../Assign_1/data/TipsR.csv")
 
 head(datum)
 View(datum)
