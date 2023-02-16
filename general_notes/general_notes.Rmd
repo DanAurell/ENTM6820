@@ -11,8 +11,51 @@ ggpubr is a package worth considering using: publication-ready plots
 How to find packages not listed in normal CRAN
 - e.g., on repository Bioconductor
 
+```{r}
+library(tidyverse)
+```
+
+
 
 ```{r}
 getwd()
+
+datum <- read.csv("../general_notes/data/corr.csv",na.strings = "NA")
+
+data("mtcars") # this accesses data that are pre-loaded into R
+head(airquality)
+
+data() # lists all of the datasets in the data package
 ```
+
+
+
+```{r}
+plot(x = mtcars$wt, y = mtcars$mpg,
+     xlab = "Car weight",
+     ylab = "Miles per gallon",
+     font.lab = 6,
+     pch = 20
+     )
+```
+
+Can customize things like
+
+```{r}
+mtcars %>%
+  ggplot() +
+  geom_smooth(aes(x = wt, y = mpg), method = lm, se = FALSE, color = "black") +
+  geom_point(aes(x = wt, y = mpg, color = as.factor(cyl)), size = 2, pch = 21) +
+  theme_classic() +
+  theme(legend.position = "NULL") +
+  xlab("Weight") +
+  ylab("Miles per gallon")
+  
+  
+```
+
+
+
+
+
 
