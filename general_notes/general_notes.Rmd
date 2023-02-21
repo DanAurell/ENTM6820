@@ -54,6 +54,51 @@ mtcars %>%
   
 ```
 
+```{r}
+mtcars %>%
+  ggplot() +
+  geom_smooth(aes(x = wt, y = mpg), method = lm, se = FALSE, color = "black") +
+  geom_point(aes(x = wt, y = mpg, color = wt), size = 2, pch = 16) +
+  theme_classic() +
+  theme(legend.position = "NULL") +
+  xlab("Weight") +
+  ylab("Miles per gallon") +
+  scale_color_gradient(low="forestgreen", high = "black") +
+  scale_y_log10()
+```
+
+If you're trying to compare means across groups, you can use many different kinds of plots
+
+## Thursday 2023-02-16
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+bull.richness <- read.csv("./data/Bull_richness.csv", na.strings = NA)
+# setting na.strings lets us specify how NAs are coded
+```
+
+```{r}
+bull.richness.soy.no.till <- bull.richness[bull.richness$Crop == "Soy" 
+                                           & bull.richness$Treatment == "No-till",]
+```
+
+There are a few variables that are stored as time... tricky to work with in R
+
+So we'll use GrowthStage as our standin for time
+
+Getting used to showing all the data points associated with
+*We'll do overplotting using geom_jitter
+
+```{r}
+ggplot(bull.richness.soy.no.till, aes(x = GrowthStage, y = richness, color = Fungicide)) +
+  geom_boxplot() +
+  geom_point(position = position_jitterdodge(0.2), alpha = 0.5)
+```
+
+
 
 
 

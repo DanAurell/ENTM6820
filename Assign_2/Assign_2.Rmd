@@ -57,7 +57,7 @@ library(emmeans)
 ```
 
 ```{r}
-datum <- read.csv("../Assign_1/data/TipsR.csv")
+datum <- read.csv("../Assign_2/data/TipsR.csv")
 
 head(datum)
 View(datum)
@@ -88,41 +88,40 @@ datum %>%
   group_by(School, Gender) %>% 
   summarize(n = n())
 
-
-
-
-# Imagine that the letter (A-G) in front of Delivery specifies a Delivery team (made up of 1 male and 1 female)
-
-# Then all A and f servers must be one individual and all A and m servers must be a second individual
-# This would let us generate an ID to use as a random effect
-
-# Say the research question is: is there a difference between
-
-
-
-
-
-
-
-
-
 # dplyr to save an object to use for analysis
 datum2 <- datum %>% 
   filter(!is.na(Gender))
 
-
+View(datum2)
 ```
-
 
 
 
 ## lme4
 ```{r}
-lme
+library(lme4)
+
+m1 <- lmer(Tip~Total+Gender + (1|School), data = datum2)
+
+summary(m1)
 ```
 
+## emmeans
 
+```{r}
+emmeans(m1, pairwise ~ Gender)
+```
 
+## purrr
+```{r}
+get_mean <- function(data, group){
+  data %>% 
+    dplyr::filter(Gender == group) %>% 
+    summarise(mean_tip = mean(Tip))
+}
+
+map(unique(datum2$Gender), get_mean, data = datum2)
+```
 
 
 
