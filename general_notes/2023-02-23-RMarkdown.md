@@ -1,0 +1,29 @@
+---
+title: "RMarkdown notes"
+author: "Dan Aurell"
+date: "2023-02-23"
+output:   
+  html_document: 
+    keep_md: yes
+  word_document: default
+---
+
+
+
+## YAML headers
+Say we want to save a .Md file (the in between RMd and HTML)
+- Then we edit the output up top
+- Because we want to push the .Md file up to GitHub
+
+can also have output: github_document
+
+Make a plot
+
+```r
+plot(x=cars$dist, y=cars$speed)
+```
+
+![](2023-02-23-RMarkdown_files/figure-html/unnamed-chunk-1-1.png)<!-- -->
+
+
+
