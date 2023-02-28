@@ -66,3 +66,10 @@ This calls r code inline, for example three times x equals 6.
 [This is a hyperlink](https://github.com)
 
 https://github.com
+
+
+Can include images and tables... will pick back up on Tuesday.
+
+
+![Shrek and ggplot are like onions: they have layers!](../general_notes/shrek.jpg)
+
