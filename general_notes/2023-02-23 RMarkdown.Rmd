@@ -69,3 +69,22 @@ Can include images and tables... will pick back up on Tuesday.
 
 ![Shrek and ggplot are like onions: they have layers!](../general_notes/shrek.jpg)
 
+
+## Making tables
+
+```{r}
+library(knitr)
+```
+
+
+Kable function in Knitr
+
+The better way to make tables
+```{r}
+kable(head(mtcars))
+```
+
+
+
+
+
