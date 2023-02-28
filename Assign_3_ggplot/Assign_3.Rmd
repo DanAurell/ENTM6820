@@ -1,0 +1,167 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+```{r}
+
+```
+
+
+## Question 1
+* A geom is a rule for how data will be graphically represented
+* A facet is each individual sub-graph, where each sub-graph is based on a subset of the data. For example you might facet on / by variety, but retain all four treatments in each facet
+* Layering relates to geoms because geoms are layered on top of one another. You can, for example, layer points on top of a boxplot
+* You add the x and y variables (spatial/positional), the colors, shapes (other aesthetics) in the "mapping = aes()" argument within ggplot. This is where you set the plot-wide aesthetic mappings. Note that you can add aesthetic mappings within an individual geom, in which case the mapping holds only for that geom.
+* Jittering adds some random noise to the position of a point. This helps avoid overplotting to see the density of points
+
+## Question 2
+
+```{r}
+library(tidyverse)
+```
+
+```{r}
+datum <- read.csv("../Assign_3_ggplot/data/MycotoxinData.csv", na.strings = "na")
+```
+
+```{r}
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON)) +
+  geom_boxplot() +
+  xlab(NULL) +
+  ylab("DON (ppm)")
+```
+## Question 3
+
+```{r}
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  xlab(NULL) +
+  ylab("DON (ppm)")
+```
+
+## Question 4
+
+```{r}
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2) +
+  geom_jitter(pch=21, width = 0.2, color = "black") +
+  xlab(NULL) +
+  ylab("DON (ppm)")
+```
+
+
+## Question 5
+Color
+```{r}
+
+cbpalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON, color = Treatment)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  geom_jitter(pch=21, width = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
+  scale_color_manual(values = cbpalette) +
+  xlab(NULL) +
+  ylab("DON (ppm)")
+```
+
+
+## Question 6
+Faceting
+```{r}
+
+cbpalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON, color = Treatment)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  geom_jitter(pch=21, width = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
+  scale_color_manual(values = cbpalette) +
+  xlab(NULL) +
+  ylab("DON (ppm)") +
+  facet_wrap(~Cultivar)
+```
+
+## Question 7
+Themes
+```{r}
+
+cbpalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON, color = Treatment)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  geom_jitter(pch=21, width = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
+  scale_color_manual(values = cbpalette) +
+  xlab(NULL) +
+  ylab("DON (ppm)") +
+  facet_wrap(~Cultivar) +
+  theme_bw()
+```
+
+Question 8
+Transparency
+
+```{r}
+
+cbpalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+
+
+datum %>% 
+ggplot(aes(x = as.factor(Treatment), y = DON, color = Treatment)) +
+  stat_summary(fun.data = mean_se, geom = "bar", width = 0.2) +
+  geom_jitter(pch=21, width = 0.2, alpha = 0.2) +
+  stat_summary(fun.data = mean_se, geom = "errorbar", width = 0.2, color = "black") +
+  scale_color_manual(values = cbpalette) +
+  xlab(NULL) +
+  ylab("DON (ppm)") +
+  facet_wrap(~Cultivar) +
+  theme_bw()
+```
+
+
+## Question 9
+
+They both show a measure of central tendency and a measure of the spread of the data.
+
+*Central tendency*
+
+- The boxplots show the median (as a thick horizontal line) 
+- In contrast, the bar charts show the mean.
+
+*Spread of data*
+- To show the spread of the data, boxplots show the 1st and 3rd quartile (as the ends of the box). The vertical lines and points show some further measure of spread (outliers).
+- The bar charts include +/- standard error
+
+- One issue with +/-SE is that this is shown as symmetrical even if the distribution of the underlying data is not. Also, these are sensitive to sample size. Better to show 95% CIs. The bar plots also obscure the lower end of the distribution.
+
+- I would prefer to use the boxplots
+
+
+## Question 10
+Geom types
+
+I tried geom_violin, not very effective
+I'll have to return to this.
+
+
+
+
+
+
+
+
+
