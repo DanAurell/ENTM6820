@@ -1,0 +1,125 @@
+---
+title: "Untitled"
+author: "Dan Aurell"
+date: "2023-03-14"
+output:   
+  html_document: 
+    keep_md: yes
+---
+
+```{r}
+library(tidyverse)
+
+datum <- read.csv("./data/Microbiome.csv")
+```
+
+```{r}
+str(datum)
+# There's a lot of data here that we're not going to use
+datum2 <- datum %>% 
+  select(OTU, SampleID, Abundance, Crop, Compartment, 
+         DateSampled, GrowthStage, Treatment, Rep, Fungicide,
+         Kingdom:Taxonomy)
+
+# Subsetting
+datum2 %>% filter(Class == "Sordariomycetes")
+
+# Mutating
+
+
+# Replacing NAs
+datum2 %>%
+  replace_na(list(Order = "unidentified")) # Does replacement just for "Order" column
+
+# 
+datum2 %>%
+  replace_na(list(Order = "unidentified")) %>% 
+  mutate(Percent = Abundance*100) %>% 
+  group_by(Order) %>% 
+  summarize(Mean = mean(Percent),
+            n = n(),
+            sd.dev = sd(Percent)
+            ) %>% 
+  mutate(Order2 = fct_reorder(Order, desc(Mean))) %>%
+  ggplot(aes(x = Order2, y = Mean)) + 
+  # alternatively can do x = reorder(Order, desc(Mean))
+  geom_bar(stat = "identity") +
+  coord_flip()
+
+
+
+
+```
+Joining
+```{r}
+taxonomy <- datum2 %>%
+  select(OTU, Kingdom:Taxonomy) %>% 
+  sample_n(100) # newer alternative is slice_sample
+
+metadata <- datum2 %>%
+  select(OTU:Fungicide) %>% 
+  sample_n(100) # newer alternative is slice_sample
+
+jnd <- left_join(taxonomy, metadata, by = "OTU")
+
+# Inner join takes the common set between the two datasets
+# Outer join takes the 
+# Full_join
+
+
+full_join(taxonomy, metadata, by = "OTU")
+
+
+```
+
+Pivotting
+
+Wide format can be helpful for data entry
+Long format is best for analysis and graphing
+
+This becomes especially valuable when we have multiple grouping factors
+
+```{r}
+# pivot_longer() and pivot_wider()
+
+datum2 %>%
+  filter(Class == "Sordariomycetes") %>% 
+  mutate(Percent = Abundance*100) %>% 
+  group_by(Order, Crop, Compartment, Fungicide) %>% 
+  summarize(Mean = mean(Percent),
+            n = n()
+            )
+
+# Say you actually wanted to calculate a Delta, e.g., Percent for Control minus Percent for Fungicide
+
+datum2 %>%
+  filter(Class == "Sordariomycetes") %>% 
+  mutate(Percent = Abundance*100) %>% 
+  group_by(Order, Crop, Compartment, Fungicide) %>% 
+  summarize(Mean = mean(Percent),
+            n = n()
+            ) %>% 
+  pivot_wider(names_from = Fungicide, values_from = Mean)
+
+# I'm not getting the same results as Dr. Noel
+
+
+datum2 %>%
+  filter(Class == "Sordariomycetes") %>% 
+  mutate(Percent = Abundance*100) %>% 
+  group_by(Order, Crop, Compartment, Fungicide) %>% 
+  summarize(Mean = mean(Percent),
+            n = n()
+            ) %>% 
+  pivot_wider(names_from = Fungicide, values_from = Mean)
+
+
+
+```
+
+
+
+
+
+
+

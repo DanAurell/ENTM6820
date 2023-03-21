@@ -1,0 +1,33 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Deviance = error = residuals
+
+Estimate B0, B1, error
+
+How to fit best fit line
+- Minimize sum of squared errors (SSE)    
+
+
+Yi = (y_i-yHat)*2
+
+SSE+ SSR  = (TSS total sum of squares)
+
+The strength regression has to do with the balance between SSE in relation to TXX 
+
+Assumptions of regression
+1. Continuous Y
+2. Normally distributed residuals
+3. Linear relationship
+4. No heteroscedasticity
+5. No autocorrelation
+
+
+
+
+```{r}
+lm()
+```
+
