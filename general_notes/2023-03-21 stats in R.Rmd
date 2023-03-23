@@ -20,14 +20,15 @@ The strength regression has to do with the balance between SSE in relation to TX
 Assumptions of regression
 1. Continuous Y
 2. Normally distributed residuals
-3. Linear relationship
+3. *Linear relationship* *Important*
 4. No heteroscedasticity
-5. No autocorrelation
+5. Independent samples (No autocorrelation)
+
+
+*Formal tests only valuable when data sizes are small
+  *With large dataset you're going to get 
 
 
 
 
-```{r}
-lm()
-```
 

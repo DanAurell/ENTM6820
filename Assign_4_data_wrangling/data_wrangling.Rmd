@@ -1,0 +1,121 @@
+---
+title: "Untitled"
+author: "Dan Aurell"
+date: "2023-03-23"
+output: 
+  html_document:
+    keep_md: yes
+---
+
+
+```{r}
+library(tidyverse)
+```
+
+
+
+```{r}
+datum <- read.csv("../Assign_4_data_wrangling/data/Microbiome.csv")
+
+str(datum)
+```
+
+
+Q1. Select the following columns.
+
+```{r eval=FALSE}
+datum %>% 
+  select(c(OTU, SampleID, Abundance, Crop, Compartment, DateSampled, GrowthStage, Treatment, Rep, Fungicide, Kingdom, Phylum, Class, Order, Family, Genus, Species, Taxonomy))
+```
+
+
+
+Q2. Calculate the mean percent relative abundance across all OTUs by compartment using the pipe operator.
+
+```{r}
+datum %>% 
+  group_by(Compartment) %>% 
+  summarize(Abundance = mean(Abundance))
+```
+
+
+Q3. Calculate the mean percent relative abundance across all OTUs by compartment and fungicide using the pipe operator.
+
+```{r}
+datum %>% 
+  group_by(Compartment, Fungicide) %>% 
+  summarize(Abundance = 100*mean(Abundance))
+```
+
+Q4. Restrict the previous analysis to just the fungal class Dothideomycetes.
+
+```{r}
+datum %>% 
+  filter(Class == "Dothideomycetes") %>% 
+  group_by(Compartment, Fungicide) %>% 
+  summarize(Abundance = 100*mean(Abundance))
+```
+
+Q5. Now do the same analysis but for Orders in the class Dothideomycetes.
+
+```{r}
+datum %>% 
+  filter(Class == "Dothideomycetes") %>% 
+  group_by(Order, Compartment, Fungicide) %>% 
+  summarize(Abundance.m = 100*mean(Abundance))
+```
+
+Q6. Calculate the standard error for each mean in Q5.
+
+```{r}
+df <- datum %>% 
+  filter(Class == "Dothideomycetes") %>% 
+  group_by(Order, Compartment, Fungicide) %>% 
+  summarize(Abundance.m = 100*mean(Abundance), 
+            n=n(),
+            se = sd(Abundance)/sqrt(n)
+            )
+```
+
+
+Q7. Select the columns Order, Compartment, Fungicide and Mean from the output of Q6 and Pivot the dataset to wide format so you have Compartment as column headers
+
+```{r}
+df <- df %>% 
+  select(Order, Compartment, Fungicide, Abundance.m)
+
+df %>% 
+  pivot_wider(names_from = c(Compartment), values_from = Abundance.m)
+```
+
+
+Q8. Recreate this plot using your dataset in Q7. 
+
+```{r}
+order <- datum %>% 
+  filter(Class == "Dothideomycetes") %>%
+  group_by(Order) %>% 
+  summarize(Abundance.m = 100*mean(Abundance)) %>% 
+  arrange(Abundance.m) %>% 
+  select(Order)
+
+order <- order$Order
+
+plotdatum <- datum %>% 
+  filter(Class == "Dothideomycetes") %>%
+  group_by(Order, Fungicide) %>% 
+  summarize(Abundance.m = 100*mean(Abundance))
+
+plotdatum$Order <- factor(plotdatum$Order, levels=order)
+  
+```
+
+
+```{r}
+plotdatum %>% 
+  ggplot(aes(x=Order, y = Abundance.m, fill = Fungicide)) +
+  geom_col(position = "dodge") +
+  xlab(NULL) +
+  ylab("Percent relative abundance") +
+  coord_flip()
+```
