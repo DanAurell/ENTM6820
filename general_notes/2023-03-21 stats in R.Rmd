@@ -8,8 +8,8 @@ Deviance = error = residuals
 Estimate B0, B1, error
 
 How to fit best fit line
+- Average residual = 0
 - Minimize sum of squared errors (SSE)    
-
 
 Yi = (y_i-yHat)*2
 
@@ -27,6 +27,54 @@ Assumptions of regression
 
 *Formal tests only valuable when data sizes are small
   *With large dataset you're going to get 
+
+
+-------
+
+T-test is 2 groups
+
+
+What's an ANOVA?
+t-test w more than 2 groups
+
+You get an F-statistic from an ANOVA
+- testing the significance of [factor]
+
+
+Basic idea of interactions:
+- The effect of one variable depends on the value of another variable
+
+
+
+```{r}
+library(tidyverse)
+library(lme4)
+library(emmeans)
+library(multcomp)
+```
+
+```{r}
+data("mtcars")
+
+mtcars %>% 
+ggplot(aes(x=wt, y=mpg)) +
+  geom_smooth() +
+  geom_point()
+```
+
+
+```{r}
+lm1 <- lm(mpg~wt, data = mtcars)
+summary(lm1) # p-value 1.29e-10
+
+cor.test(mtcars$wt, mtcars$mpg) # A classical test gives the exact same result
+
+ggplot(lm1, aes(y=.resid, x=.fitted)) +
+  geom_point()
+
+plot(lm1)
+
+```
 
 
 
