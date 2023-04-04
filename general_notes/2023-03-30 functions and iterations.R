@@ -101,4 +101,77 @@ for (i in seq_along(nm)){
 # Eventually we'll do this with `map` which hooks in with dplyr
 
 
+------
+
+# 2023-04-04 Finishing loops  
+    
+# Pulled in from the actual version  
+
+EC50.ll4 <- NULL # create a null object   
+
+  for (i in seq_along(nm)) {
+    isolate1 <- drm(100 * datum$relgrowth[datum$is == nm[[i]]] ~ 
+                      datum$conc[datum$is == nm[[i]]], 
+                    fct = LL.4(fixed = c(NA, NA, NA, NA), 
+                               names = c("Slope", "Lower", "Upper", "EC50")), 
+                    na.action = na.omit)
+    # outputs the summary of the paramters including the estimate, standard
+    # error, t-value, and p-value outputs it into a data frame called
+    # summary.mef.fit for 'summary of fit'
+    summary.fit <- data.frame(summary(isolate1)[[3]])
+    # outputs the summary of just the EC50 data including the estimate, standard
+    # error, upper and lower bounds of the 95% confidence intervals around the
+    # EC50
+    EC50 <- ED(isolate1, respLev = c(50), type = "relative", 
+               interval = "delta")[[1]]
+    EC50
+    isolate_ec_i <- data.frame(nm[i], EC50)
+    colnames(isolate_ec_i) <- c("Isolate", "EC50")
+    EC50.ll4 <- rbind.data.frame(EC50.ll4, isolate_ec_i)
+  }
+
+
+
+
+#######
+
+# Using `map`
+
+
+#### ---- Pulled from GitHub but gives errors
+datum %>%
+  group_by(is) %>%
+  nest() %>%
+  mutate(ll.4.mod = map(datum, ~drm(.$relgrowth ~ .$conc, 
+                                   fct = LL.4(fixed = c(NA, NA, NA, NA), 
+                                              names = c("Slope", "Lower", "Upper", "EC50"))))) %>%
+  mutate(ec50 = map(ll.4.mod, ~ED(., 
+                                  respLev = c(50), 
+                                  type = "relative",
+                                  interval = "delta")[[1]])) %>%
+  unnest(ec50)
+
+#### End
+
+# Step by step
+tibble_by_is <- datum %>% group_by(is) %>% # get the model for each isolate
+  nest() # There is a tibble for each group...
+  
+
+datum %>% group_by(is) %>% # 
+  nest() %>% 
+  mutate(ll.4.mod = map(data, ~drm(.$relgrowth ~.$conc, fct = LL.4())))  # "." means "everything"... 
+# it's a quirk of the `map` function
+
+ec50results$data[1] <- datum %>% group_by(is) %>% 
+  nest() %>% 
+  mutate(ll.4.mod = map(data, ~drm(.$relgrowth ~.$conc, fct = LL.4()))) %>% 
+  mutate(ec50 = map(ll.4.mod, ~ED(., respLev = 50)[1]))
+ec50results$data[1]
+ec50results$ll.4.mod[1]
+
+# We can unnest any of these columns
+
+
+
 
