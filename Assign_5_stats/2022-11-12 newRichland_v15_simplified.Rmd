@@ -1,0 +1,1058 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+
+```{r}
+library(MASS) # Load first because MASS masks select from dplyr...
+library(tidyverse)
+library(lme4)
+library(emmeans)
+library(car)
+# library(nlme)
+# library(olsrr)
+```
+Make a local version of my packages
+```{r}
+# Lockfile made on 2023-02-11 before updating packages and R
+
+# renv::init() # to initialize a new project-local environment with a private R library
+# renv::dependencies() # to check which packages my code depends on
+# renv::snapshot() # to create a lockfile
+
+# I reran the script on 2023-02-12 after updating my packages, and everything seemed to work.
+
+# Next, update R
+```
+
+### Next steps re: package management
+- Continue working on your project, installing and updating R packages as needed.
+- Call renv::snapshot() again to save the state of your project library if your attempts to update R packages were successful, or call renv::restore() to revert to the previous state as encoded in the lockfile if your attempts to update packages introduced some new problems.
+
+
+
+# LOAD, FILTER, MANIPULATE DATA --------
+
+```{r, include=FALSE}
+datum_orig <- read.csv("./source_data/7.0 2021-01-05.csv")
+
+datum_orig <- datum_orig %>% rename(
+  bees = bees_num,
+  pattern = brd_pattern,
+  phor = perc_phoretic_mites_by_weight,
+  infest_200 = infested_in_first_200_cells_num,
+  mites_tot = mites_total_estimate,
+  trt = treatment,
+  wk_cells = wrk_capbrd_cells_num
+)
+```
+
+
+Here I discard a lot of nuisance columns
+```{r, include=FALSE}
+datum <- datum_orig %>% 
+  mutate(
+    days = ifelse(time_point == 1, 0, 
+                     ifelse(time_point == 10, 10, 
+                            ifelse(time_point == 17, 21, 
+                                   ifelse(time_point == 22, 42, NA)))),
+  # Make derived variables of wk_cells to see if they give more normal residuals
+    bees_frames = bees_tot_sides/2, # expressed in frames
+    wk_frames = wk_capbrd_tot_sides/2, # expressed in frames
+    honey_frames = revised_honey_tot_sides/2, # expressed in frames
+    pollen_frames = revised_pollen_tot_sides/2 # expressed in frames
+  ) %>% 
+  select(
+    col_no,
+    trt,
+    time_point,
+    date,
+    days,
+    q_status,
+    q_event,
+    pattern,
+    notes,
+    est_bee_num_by_wt,
+    mites_recov_total,
+    phor,
+    infest_200,
+    mites_tot,
+    bees,
+    bees_frames,
+    wk_cells,
+    wk_frames,
+    honey_frames,
+    pollen_frames
+  ) %>% 
+  # Filter to include only the time points where we have data
+  filter(days %in% c(0, 10, 21, 42),
+         (col_no != "C15" | days != "42")
+         )
+# 184 down to 183 by removing C15 on Day-42
+# datum[sapply(datum, is.infinite)] <- NA
+# That got rid of the infinite value cells
+```
+
+```{r, include=FALSE}
+# datum$trt <- factor(datum$trt , levels=c("Apivar", "Apiguard_Api", "AEC"))
+datum$trt <- factor(datum$trt , levels=c("Apiguard_Api", "AEC", "Apivar"))
+
+datum$days <- factor(datum$days)
+```
+
+### Make standardized versions of all my continuous predictors
+
+
+Nathalie workflow suggestion 
+Do the scale transformation of bees to bees_S 
+before recalculating pre_bees_S based on bees_S
+
+```{r}
+datum <- datum %>% 
+  mutate(
+    pattern_S = scale(pattern, center = TRUE, scale = TRUE),
+    phor_S = scale(phor, center = TRUE, scale = TRUE),
+    infest_200_S = scale(infest_200, center = TRUE, scale = TRUE),
+    mites_tot_S = scale(mites_tot, center = TRUE, scale = TRUE),
+    bees_S = scale(bees, center = TRUE, scale = TRUE),
+    bees_frames_S = scale(bees_frames, center = TRUE, scale = TRUE),
+    wk_cells_S = scale(wk_cells, center = TRUE, scale = TRUE),
+    wk_frames_S = scale(wk_frames, center = TRUE, scale = TRUE),
+    honey_frames_S = scale(honey_frames, center = TRUE, scale = TRUE),
+    pollen_frames_S = scale(pollen_frames, center = TRUE, scale = TRUE)
+  )
+```
+
+
+### Make new pre-treatment columns
+
+Make a column of pre-treatment values for each variable of interest.
+In order to do ANCOVA-POST and to include as predictors in mixed modeling:
+
+```{r, include=FALSE}
+# Extract row based on colony number of row i and day = 0
+# Write the value of the column of interest (say bees to start with) into a pre_bees column
+
+#    pattern
+for(i in 1:nrow(datum)) {
+  datum$pre_pattern[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$pattern
+}
+
+#    pattern_S
+for(i in 1:nrow(datum)) {
+  datum$pre_pattern_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$pattern_S
+}
+
+#    phor
+for(i in 1:nrow(datum)) {
+  datum$pre_phor[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$phor
+}
+
+#    phor_S
+for(i in 1:nrow(datum)) {
+  datum$pre_phor_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$phor_S
+}
+
+#    infest_200
+for(i in 1:nrow(datum)) {
+  datum$pre_infest_200[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$infest_200
+}
+
+#    infest_200_S
+for(i in 1:nrow(datum)) {
+  datum$pre_infest_200_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$infest_200_S
+}
+
+#    mites_tot
+for(i in 1:nrow(datum)) {
+  datum$pre_mites_tot[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$mites_tot
+}
+
+#    mites_tot_S
+for(i in 1:nrow(datum)) {
+  datum$pre_mites_tot_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$mites_tot_S
+}
+
+#    bees
+for(i in 1:nrow(datum)) {
+  datum$pre_bees[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$bees
+}
+
+#    bees_S
+for(i in 1:nrow(datum)) {
+  datum$pre_bees_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$bees_S
+}
+
+#    bees_frames
+for(i in 1:nrow(datum)) {
+  datum$pre_bees_frames[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$bees_frames
+}
+
+#    bees_frames_S
+for(i in 1:nrow(datum)) {
+  datum$pre_bees_frames_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$bees_frames_S
+}
+
+#    wk_cells
+for(i in 1:nrow(datum)) {
+  datum$pre_wk_cells[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$wk_cells
+}
+
+#    wk_cells_S
+for(i in 1:nrow(datum)) {
+  datum$pre_wk_cells_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$wk_cells_S
+}
+
+#    wk_frames
+for(i in 1:nrow(datum)) {
+  datum$pre_wk_frames[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$wk_frames
+}
+
+#    wk_frames_S
+for(i in 1:nrow(datum)) {
+  datum$pre_wk_frames_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$wk_frames_S
+}
+
+#    honey_frames
+for(i in 1:nrow(datum)) {
+  datum$pre_honey_frames[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$honey_frames
+}
+
+#    honey_frames_S
+for(i in 1:nrow(datum)) {
+  datum$pre_honey_frames_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$honey_frames_S
+}
+
+#    pollen_frames
+for(i in 1:nrow(datum)) {
+  datum$pre_pollen_frames[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$pollen_frames
+}
+
+#    pollen_frames_S
+for(i in 1:nrow(datum)) {
+  datum$pre_pollen_frames_S[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$pollen_frames_S
+}
+```
+
+
+
+
+```{r}
+# This one is for the mixed modeling of the whole data set (for all variables but brood area)
+datum.no10 <- datum %>% filter(
+  days != "10"
+)
+
+# These are to use once we break up the analysis into separate days
+datum.0 <- datum %>% filter(
+  days == 0
+)
+
+datum.10 <- datum %>% filter(
+  days == 10
+)
+
+datum.21 <- datum %>% filter(
+  days == 21
+)
+
+datum.42 <- datum %>% filter(
+  days == 42
+  )
+```
+
+prep datum for graphing
+```{r}
+datum_cont <- datum
+datum_cont$days <- as.numeric(as.character(datum_cont$days))
+```
+
+
+Run preferred models
+
+```{r}
+m.phor.nb2 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10)
+summary(m.phor.nb2)
+
+m.infest.nb3 <- glmer.nb(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no),
+                   data = datum.no10)
+summary(m.infest.nb3)
+
+m.bee1 <- lmer(bees_frames ~ trt + days + trt:days + pre_wk_frames + pre_phor + (1 | col_no), data = datum.no10)
+summary(m.bee1)
+
+m.brood1 <- lmer(wk_frames ~ 
+                   trt + 
+                   days + 
+                   trt:days + 
+                   pre_bees_frames + 
+                   pre_phor +
+                  (1 | col_no), 
+                 data = datum)
+summary(m.brood1)
+```
+
+
+# GRAPHING
+
+- Phoretic mites, 
+
+(cell infestations)
+(total mites)
+
+- Frames of Sealed brood
+- Bee population
+
+
+
+
+
+### Graphing emmeans predictions and CLs----------------
+
+#### Planning some graphing
+
+```{r}
+ggplot() +
+  geom_hline(yintercept = 1, linetype = 1, colour = "green", size = 2) +
+  geom_hline(yintercept = 2, linetype = 1, colour = "forestgreen", size = 2) +
+  geom_hline(yintercept = 3, linetype = 1, colour = "chartreuse3", size = 2) +
+  geom_hline(yintercept = 4, linetype = 1, colour = "#00BA38", size = 2) +  
+  geom_hline(yintercept = 5, linetype = 1, colour = "aquamarine3", size = 2) +
+  theme_classic()
+  
+```
+
+
+
+prep
+```{r}
+pd <- position_dodge(2)
+```
+
+#### Varroa infestation of adult bees
+
+##### Notes 2022-11-12
+ggplot(data=longPowerCurve,aes(x=N, y=value, colour=Method, linetype=Type))
+
+groups <- data.frame(do.call('rbind', strsplit(as.character(longPowerCurve$Method),'.',fixed=TRUE)))
+colnames(groups) <- c("Method", "Type")
+longPowerCurve$Method <- groups$Method
+longPowerCurve$Type <- groups$Type
+
+ggplot(data=longPowerCurve,aes(x=N, y=value, colour=Method, linetype=Type)) + 
+  geom_line() +
+  ylab("Power") +
+  ggtitle("Power levels for various N and distributions")+
+  theme(legend.text = element_text(size = 12))
+  
+  
+  
+  ---
+  
+  ggplot(df, aes(x=x, y=y, group=group)) +
+  geom_line(aes(linetype=group, color=group), size=1.5)
+  
+  ---
+Set line types manually
+
+ggplot(df2, aes(x=time, y=bill, group=sex)) +
+  geom_line(aes(linetype=sex))+
+  geom_point()+
+  scale_linetype_manual(values=c("twodash", "dotted"))+
+  theme(legend.position="top")
+
+
+Change line colors and sizes
+
+ggplot(df2, aes(x=time, y=bill, group=sex)) +
+  geom_line(aes(linetype=sex, color=sex, size=sex))+
+  geom_point()+
+  scale_linetype_manual(values=c("twodash", "dotted"))+
+  scale_color_manual(values=c('#999999','#E69F00'))+
+  scale_size_manual(values=c(1, 1.5))+
+  theme(legend.position="top")
+  
+  
+scale_shape_manual()
+shape: numeric values as pch for setting plotting points shapes.
+Most common pch values include 21(color&fill circle) 1(circle)
+
+```{r}
+emplot_phor <- emmip(m.phor.nb2, trt~days, type = "response", CIs = TRUE, plotit = FALSE)
+emplot_phor$days <- as.numeric(as.character(emplot_phor$days))
+emplot_phor$trt <- factor(emplot_phor$trt, levels = c("Apivar", "AEC", "Apiguard_Api"))
+levels(emplot_phor$trt)
+
+```
+
+
+```{r, echo=FALSE}
+emplot_phor %>% 
+ggplot(mapping = aes(y = yvar/3, x = days, color = trt)) +  
+  # , group = trt probably not necessary
+  scale_colour_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c("black", "black", "#00BA38"), 
+    aesthetics = "color"
+  ) +
+
+  scale_linetype_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values=c("solid", "dashed", "solid")
+    ) +
+  
+  scale_shape_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c(16, 21, 16)) +  
+  
+  geom_hline(yintercept = 3, linetype = 2, colour = "red") +
+  geom_line(aes(linetype = trt), position=pd, size = 1.5) +
+  geom_errorbar(aes(ymin=LCL/3, ymax=UCL/3), width=2, position=pd, size = 1) +
+  geom_point(aes(shape=trt), position=pd, fill="white", size = 3, stroke = 1) +
+  
+  scale_x_continuous(breaks = c(0, 21, 42)) +
+  
+  theme_classic(base_size = 30) +
+ # theme(legend.position = "none") +
+  
+  ylab("Varroa / 100 bees") +
+  xlab("Experiment day")
+
+# ggsave("./outputs/p.phor_legend.png", width = 12, height = 8.625, units = "in")
+```
+
+
+
+
+
+#### Varroa infestation of brood
+
+```{r}
+emplot_infest <- emmip(m.infest.nb3, trt~days, type = "response", CIs = TRUE, plotit = FALSE)
+emplot_infest$days <- as.numeric(as.character(emplot_infest$days))
+emplot_infest$trt <- factor(emplot_infest$trt, levels = c("Apivar", "AEC", "Apiguard_Api"))
+levels(emplot_infest$trt)
+```
+
+
+```{r, echo=FALSE}
+emplot_infest %>% 
+ggplot(mapping = aes(y = yvar/2, x = days, color = trt)) +  
+  # , group = trt probably not necessary
+  scale_colour_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c("black", "black", "#00BA38"), 
+    aesthetics = "color"
+  ) +
+
+  scale_linetype_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values=c("solid", "dashed", "solid")
+    ) +
+  
+  scale_shape_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c(16, 21, 16)) +  
+  
+  geom_line(aes(linetype = trt), position=pd, size = 1.5) +
+  geom_errorbar(aes(ymin=LCL/2, ymax=UCL/2), width=2, position=pd, size = 1) +
+  geom_point(aes(shape=trt), position=pd, fill="white", size = 3, stroke = 1) +
+  
+  scale_x_continuous(breaks = c(0, 21, 42)) +
+  
+  theme_classic(base_size = 30) +
+ theme(legend.position = "none") +
+  
+  ylab("Infested cells / 100 cells") +
+  xlab("Experiment day")
+
+# ggsave("./outputs/p.infest.png", width = 12, height = 8.625, units = "in")
+```
+
+
+#### Adult bee population
+
+
+
+```{r}
+emplot_bee <- emmip(m.bee1, trt~days, type = "response", CIs = TRUE, plotit = FALSE)
+emplot_bee$days <- as.numeric(as.character(emplot_bee$days))
+emplot_bee$trt <- factor(emplot_bee$trt, levels = c("Apivar", "AEC", "Apiguard_Api"))
+levels(emplot_bee$trt)
+```
+
+```{r, echo=FALSE}
+# TEMPLATE
+
+emplot_bee %>% 
+ggplot(mapping = aes(y = yvar, x = days, color = trt)) +  
+  # , group = trt probably not necessary
+  scale_colour_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c("black", "black", "#00BA38"), 
+    aesthetics = "color"
+  ) +
+
+  scale_linetype_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values=c("solid", "dashed", "solid")
+    ) +
+  
+  scale_shape_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c(16, 21, 16)) +  
+  
+  geom_line(aes(linetype = trt), position=pd, size = 1.5) +
+  geom_errorbar(aes(ymin=LCL, ymax=UCL), width=2, position=pd, size = 1) +
+  geom_point(aes(shape=trt), position=pd, fill="white", size = 3, stroke = 1) +
+  
+  scale_x_continuous(breaks = c(0, 21, 42)) +
+  
+  theme_classic(base_size = 30) +
+ theme(legend.position = "none") +
+  
+  ylab("Frames of bees") +
+  xlab("Experiment day")
+
+# ggsave("./outputs/p.bees.png", width = 12, height = 8.625, units = "in")
+```
+
+
+
+
+
+#### Brood population
+
+
+
+```{r}
+emplot_brood <- emmip(m.brood1, trt~days, type = "response", CIs = TRUE, plotit = FALSE)
+emplot_brood$days <- as.numeric(as.character(emplot_brood$days))
+emplot_brood$trt <- factor(emplot_brood$trt, levels = c("Apivar", "AEC", "Apiguard_Api"))
+levels(emplot_brood$trt)
+```
+
+```{r, echo=FALSE}
+emplot_brood %>% 
+ggplot(mapping = aes(y = yvar, x = days, color = trt)) +  
+  # , group = trt probably not necessary
+  scale_colour_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c("black", "black", "#00BA38"), 
+    aesthetics = "color"
+  ) +
+
+  scale_linetype_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values=c("solid", "dashed", "solid")
+    ) +
+  
+  scale_shape_manual(
+    limits = c("Apivar", "AEC", "Apiguard_Api"),
+    labels = c("Apivar", "Amitraz E.C.", "Combination"),
+    values = c(16, 21, 16)) +  
+  
+  geom_line(aes(linetype = trt), position=pd, size = 1.5) +
+  geom_errorbar(aes(ymin=LCL, ymax=UCL), width=2, position=pd, size = 1) +
+  geom_point(aes(shape=trt), position=pd, fill="white", size = 3, stroke = 1) +
+  
+  scale_x_continuous(breaks = c(0, 10, 21, 42)) +
+  
+  theme_classic(base_size = 30) +
+ theme(legend.position = "none") +
+  
+  ylab("Frames of capped brood") +
+  xlab("Experiment day")
+
+# ggsave("./outputs/p.brood.png", width = 12, height = 8.625, units = "in")
+```
+
+
+
+
+# STATS below -----------
+
+## Predictor variables of interest
+trt
+days
+trt:days
+
+bees_frames
+wk_frames
+
+phor
+  est_bee_num_by_wt
+  mites_recov_total
+
+
+
+## Phoretic mites - Poisson regression
+```{r, eval=FALSE}
+m.phor.pois1 <- glmer(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.phor.pois1)
+
+# Drop pre_wk_frames
+# Now all terms are significant
+m.phor.pois2 <- glmer(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+#                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.phor.pois2)
+
+
+# Test dropping trt_days interaction
+m.phor.pois3 <- glmer(mites_recov_total ~ 
+                     trt + 
+                     days + 
+#                     trt:days + 
+#                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.phor.pois3)
+
+anova(m.phor.pois2, m.phor.pois3)
+# There was a significant day-treatment interaction (p = 6.9e-16). Therefore we analyzed each date separately.
+```
+
+```{r, eval=FALSE}
+# Back to using m.phor.pois2 which was our best model
+
+emmeans(m.phor.pois2, pairwise ~ trt | days, type = "response")
+confint(emmeans(m.phor.pois2, pairwise ~ trt | days, type = "response"))
+```
+
+
+## Phoretic mites - Poisson - text
+
+There was a significant day-treatment interaction (p = 6.9e-16). Therefore we analyzed each date separately.
+
+On Day-0 we did not observe any significant differences across treatment groups (p>0.98).
+
+On Day-21 we found that AEC colonies had significantly fewer mites than either Apivar or combination-treated colonies.
+
+There were 0.58 times as many (; 95% C.L.) mites in the combination-treated colonies as in the Apivar-treated colonies, but this result was not statistically significant (p=0.075).
+We found that there were 0.20 times as many (; 95% C.L.) mites in the AEC-treated colonies as in the Apivar-treated colonies (p<0.0001).
+There were also 0.34 times as many (; 95% C.L.) mites in the AEC-treated colonies as in the combination-treated colonies (p=0.0036).
+
+On Day-42 we found that AEC colonies had significantly higher mite counts than combination-treated colonies (p=0.0056). 
+
+No other treatment contrasts were significant, though there was a trend…
+
+## Phoretic mites - Negative binomial regression
+
+Checking for overdispersion
+```{r}
+dispersionstats <- datum.no10 %>%
+ summarise(
+ means = mean(mites_recov_total),
+ variances = var(mites_recov_total),
+ ratio = variances/means)
+```
+
+
+Plot residuals and see if it's zero-inflated.
+
+Find a pkg that does a negative binomial
+- Then do an F-drop test to see if the fit is significantly better with nb than pois
+
+
+
+```{r, eval = FALSE}
+# using glmer.nb() as per https://rdrr.io/cran/lme4/man/glmer.nb.html
+
+m.phor.nb1 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10)
+summary(m.phor.nb1)
+
+# Drop pre_wk_frames
+m.phor.nb2 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10)
+summary(m.phor.nb2)
+# Now all terms are significant
+
+getME(m.phor.nb2, "glmer.nb.theta")
+
+# Drop the trt:days interaction to test significance
+m.phor.nb3 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     # trt:days + 
+                     # pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = datum.no10)
+summary(m.phor.nb3)
+
+# test significance of interaction
+anova(m.phor.nb2, m.phor.nb3)
+# The interaction was significant (p = 0.000245)
+# So m.phor.nb2 is our best nb model
+```
+
+
+Comparing nb to poisson
+```{r}
+# Test whether nb is a stat sig better fit than poisson:
+anova(m.phor.nb2, m.phor.pois2)
+# Yes, highly significantly better (p<2.2e-16)
+
+summary(m.phor.pois2)$coefficients
+summary(m.phor.nb2)$coefficients
+# Funky... the fit is way better but the p values for my predictors went up
+```
+
+```{r}
+# Back to using m.phor.pois2 which was our best model
+summary(m.phor.nb2)
+
+# Main preoccupation is the contrasts between treatments within days
+emmeans(m.phor.nb2, pairwise ~ trt | days, type = "response")$contrasts
+confint(emmeans(m.phor.nb2, pairwise ~ trt | days, type = "response"))$contrasts
+
+# But for some of these, we are really interested in the change within tretament over time
+emmeans(m.phor.nb2, pairwise ~ days | trt, type = "response")$contrasts
+confint(emmeans(m.phor.nb2, pairwise ~ days | trt, type = "response"))$contrasts
+
+```
+
+## Phoretic mites - Negative binomial - text
+
+There was a significant interaction between day and treatment (p<2.2e-16). Therefore we analyzed each date separately.
+
+DAY-0 SUMMARY
+On Day-0 we did not observe any significant differences across treatment groups (p>0.95).
+
+DAY-21 SUMMARY
+On Day-21, there was a trend toward fewer mites in combination-treated colonies than in Apivar-treated colonies (though not significantly; p = 0.17).
+
+We also found that AEC colonies had significantly fewer mites than either Apivar or combination-treated colonies. 
+
+AEC colonies had 0.20 times as many mites (0.086-0.49; 95%C.L.) as Apivar colonies (p=0.0001)
+
+AEC colonies had 0.35 times as many mites (0.15-0.86; 95%C.L.) as combination-treated colonies (p=0.018).
+
+Combination-treated colonies had 0.58 times as many mites (0.28-1.18; 95%C.L.) as Apivar-treated colonies; however, this result was not statistically significant (p=0.17)
+
+DAY-42 SUMMARY
+On Day-42 we found that combination treated colonies had a trend toward lower mite counts than Apivar treated colonies, though this was not statistically significant (p=0.13). Combination treated colonies had significantly lower mite counts than AEC treated colonies (p=0.031). We did not observe a difference between Apivar and AEC treated colonies (p=0.84).
+
+Combination treated colonies had 0.55 times the number of mites (0.27-1.13; 95%C.L.) as Apivar treated colonies, though this was not statistically significant (p=0.13).
+
+Combination treated colonies had 0.47 times the number of mites (0.23-0.95; 95%C.L.) as AEC treated colonies (p=0.031).
+
+TRENDS ACROSS TIME SUMMARY
+We also looked at trends across time within each treatment.
+
+The mite count reduction from Day-0 to Day-21 was the most dramatic in the AEC group (30.3-fold reduction), compared to a 6.65-fold reduction in the Apivar group and an 11.3-fold reduction in the combination treatment.
+
+From Day-21 to Day-42 we saw a contrasting trend. The combination group ended the trial with 2.12 times as many mites as at the midpoint and the Apivar group ended the trial with 2.22 times as many mites than at the midpoint. Meanwhile, the AEC group ended the trial with 12.9 times as many mites as at the midpoint.
+
+
+## Brood mites - Poisson regression
+
+```{r}
+m.infest.pois1 <- glmer(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.infest.pois1)
+
+# Drop pre_bees_frames
+m.infest.pois2 <- glmer(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.infest.pois2)
+
+m.infest.pois2 <- glmer(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.infest.pois2)
+
+# Best poisson model
+m.infest.pois3 <- glmer(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no), 
+                   data = datum.no10, family = poisson)
+summary(m.infest.pois3)
+
+```
+
+
+## Brood mites - Negative binomial regression
+To test if it's even necessary to go down that road
+```{r}
+datum.no10 %>%
+ summarise(
+ means = mean(na.omit(infest_200)),
+ variances = var(na.omit(infest_200)),
+ ratio = variances/means)
+```
+Result: yes, it appears that negbin will fit the data better.
+
+```{r}
+m.infest.nb1 <- glmer.nb(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no),
+                   data = datum.no10)
+summary(m.infest.nb1)
+
+# Drop pre_bees_frames
+m.infest.nb2 <- glmer.nb(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no),
+                   data = datum.no10)
+summary(m.infest.nb2)
+
+# Drop pre_wk_frames
+m.infest.nb3 <- glmer.nb(infest_200 ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     # pre_bees_frames + 
+                     pre_phor +
+                     (1 | col_no),
+                   data = datum.no10)
+summary(m.infest.nb3)
+# Now all predictors are significant
+
+# Test whether the nb was sig better fit than the pois
+anova(m.infest.nb3, m.infest.pois3)
+# Yes, significantly better fit.
+# So I'll just report results from the nbin model
+
+# m.infest.nb3 best model
+```
+
+```{r}
+emmeans(m.infest.nb3, pairwise ~ trt | days, type = "response")$contrasts
+confint(emmeans(m.infest.nb3, pairwise ~ trt | days, type = "response"))$contrasts
+```
+
+Using interaction plot to illustrate predictions
+```{r}
+emmip(m.infest.nb3, trt~days)
+emmip(m.infest.nb3, trt~days, type = "response") +
+  xlab("days")
+
+emmip(m.infest.nb3, trt~days, CIs = TRUE)
+emmip(m.infest.nb3, trt~days, type = "response", CIs = TRUE) +
+  xlab("days")
+```
+
+
+## Brood mites - Negative binomial - text
+
+There were no significant between-treatment differences in infestation rate of worker brood on Days 0 or 42. However, on Day 21, brood infestation was significantly higher in Apivar-treated colonies than in combination-treated (p=0.018) or AEC-treated colonies (p=0.0059).
+
+Apivar colonies had 2.08 times the rate of cell infestation (1.11-3.91; 95%C.L.) as combination-treated colonies and 2.34 times the rate of cell infestation (1.22-4.46) as AEC-treated colonies.
+
+## Sealed brood - Normal regression
+
+```{r}
+
+m.brood1 <- lmer(wk_frames ~ 
+                   trt + 
+                   days + 
+                   trt:days + 
+                   pre_bees_frames + 
+                   pre_phor +
+                  (1 | col_no), 
+                 data = datum)
+summary(m.brood1)
+
+
+# These two used for my Results text for ESA poster
+emmeans(m.brood1, pairwise ~ trt | days)$contrasts
+confint(emmeans(m.brood1, pairwise ~ trt | days))$contrasts
+
+# nlme just to check my result (easier to get p values for model selection)
+# m.brood2 <- lme(wk_frames ~ 
+#                   trt + 
+#                   days + 
+#                   trt:days + 
+#                   pre_bees_frames + 
+#                   pre_phor,
+#                random = ~1 | col_no, 
+#                 data = datum)
+# summary(m.brood2)
+
+
+# To test for a trt:days interaction
+m.brood3 <- lmer(wk_frames ~ 
+                   trt + 
+                   days + 
+                   # trt:days + 
+                   pre_bees_frames + 
+                   pre_phor +
+                  (1 | col_no), 
+                 data = datum)
+summary(m.brood3)
+
+
+m.brood1.ML <- lmer(wk_frames ~ 
+                   trt + 
+                   days + 
+                   trt:days + 
+                   pre_bees_frames + 
+                   pre_phor +
+                  (1 | col_no), 
+                 data = datum, REML = FALSE)
+
+
+m.brood3.ML <- lmer(wk_frames ~ 
+                   trt + 
+                   days + 
+                   # trt:days + 
+                   pre_bees_frames + 
+                   pre_phor +
+                  (1 | col_no), 
+                 data = datum, REML = FALSE)
+
+anova(m.brood1.ML, m.brood3.ML)
+# Suggests that we should actually drop the interaction
+# But this is the thing we're primarily interested in
+
+
+```
+
+
+## Sealed brood - text
+
+During model selection, there was only moderate support for including the treatment-date interaction (p=0.10). However, as in all other cases we included the treatment-date interaction because this interaction is of primary interest to the study.
+
+There were no significant between-treatment differences in brood area on Days 0, 21 or 42. However, on Day 10, brood area was lower in combination-treated colonies than in Apivar-treated colonies (p=0.049) or than in AEC-treated colonies (p=0.013).
+
+On Day-10, combination-treated colonies had 0.40 fewer frames of sealed brood (0.0012-0.80; 95% C.L.) than Apivar-treated colonies; combination-treated colonies had 0.49 fewer frames of sealed brood (0.086-0.89; 95% C.L.) than AEC-treated colonies.
+
+## Bee population - Normal regression
+m.bee1 used for ESA poster
+```{r}
+# library(lme4)
+m.bee1 <- lmer(bees_frames ~ trt + days + trt:days + pre_wk_frames + pre_phor + (1 | col_no), data = datum.no10)
+summary(m.bee1)
+
+car::Anova(m.bee1, type = "II")
+# works
+# Not sure what that crap is though.
+
+confint(m.bee1)
+
+
+# These two used for my Results text for ESA poster
+emmeans(m.bee1, pairwise ~ trt | days)
+confint(emmeans(m.bee1, pairwise ~ trt | days))
+
+
+# Not used:
+# library(nlme)
+m.bee2 <- lme(bees_frames ~ trt*days + pre_wk_frames + pre_phor, random = ~1 | col_no, data = datum.no10)
+summary(m.bee2)
+
+
+# Check that lme and lmer gave similar results
+emmeans(m.bee1, pairwise ~ trt | days)$contrasts
+emmeans(m.bee2, pairwise ~ trt | days)$contrasts
+
+
+# car::Anova(m.bee2, type = "II")
+# Doesn't work for this nlme one
+```
+
+
+
+## Bees stats text
+
+On Day-21, neither combination-treated nor AEC-treated colonies were significantly different in size from Apivar-treated colonies (p=0.19; p=0.28). 
+However, AEC colonies were 1.51 frames (0.41-2.60; 95% C.L.) larger than combination-treated colonies (p=0.0043).
+
+On Day-42, combination-treated colonies were not significantly different in size from Apivar (p=0.94). However, AEC-treated colonies were 1.27 frames (0.12-2.41; 95% C.L.) larger than combination-treated colonies (p=0.027). 
+We also observed that AEC colonies were 1.10 frames (0.026-2.23; 95% C.L.) larger than Apivar colonies, but this result was not statistically significant (p=0.057).
+
+
+
+
