@@ -695,7 +695,7 @@ Plot residuals and see if it's zero-inflated.
 Find a pkg that does a negative binomial
 - Then do an F-drop test to see if the fit is significantly better with nb than pois
 
-
+DAN
 
 ```{r, eval = FALSE}
 # using glmer.nb() as per https://rdrr.io/cran/lme4/man/glmer.nb.html
