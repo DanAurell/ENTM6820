@@ -25,7 +25,7 @@ Make a local version of my packages
 
 # I reran the script on 2023-02-12 after updating my packages, and everything seemed to work.
 
-# Next, update R
+# Next, I updated R
 ```
 
 ### Next steps re: package management

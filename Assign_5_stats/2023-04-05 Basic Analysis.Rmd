@@ -7,8 +7,150 @@ output:
     keep_md: yes
 ---
 
+```{r}
+library(tidyverse)
+library(lme4)
+library(emmeans)
+```
+
+Read data
+```{r}
+datum <- read.csv("datum_simplified.csv")
+```
+
+Set variables as factors
+```{r}
+datum$trt <- factor(datum$trt , levels=c("Apivar", "AEC", "Apiguard_Api"))
+datum$days <- factor(datum$days)
+```
 
 
+Since pre-treatment values will be used as covariates, make column of Day-0 values
 
+NOT SURE IF THIS IS ACTUALLY USED
+Plus, it gives the models VERY different behavior if it's used or not
+```{r}
+# Method:
+# Extract row based on colony number of row i and day = 0
+# Write the value of the column of interest (say bees to start with) into a pre_bees column
+
+#    phor
+for(i in 1:nrow(datum)) {
+  datum$pre_phor[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$phor
+}
+
+#    infest_200
+for(i in 1:nrow(datum)) {
+  datum$pre_infest_200[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$infest_200
+}
+
+#    mites_tot
+for(i in 1:nrow(datum)) {
+  datum$pre_mites_tot[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$mites_tot
+}
+
+#    bees_frames
+for(i in 1:nrow(datum)) {
+  datum$pre_bees_frames[i] <- datum[which(datum$days == 0 & datum$col_no == datum$col_no[i]), ]$bees_frames
+}
+
+
+```
+
+Fit model and null model
+```{r}
+tempdatum <- datum %>% filter(
+  days != "10"
+) # Because we did not measure mite infestation of adult bees on Day 10
+
+# "model of phoretic mite number per sample fit with negative binomial family to account for count data with overdispersion"
+m.phor.nb1 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     # pre_bees_frames + 
+                     (1 | col_no), 
+                   data = tempdatum)
+summary(m.phor.nb1)
+
+isREML(m.phor.nb1) # glmer.nb models are always fit by log-likelihood
+```
+
+Test significance of interaction
+```{r}
+# Fit model that omits trt:days interaction
+m.phor.nb0 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     # trt:days + 
+                     # pre_wk_frames + 
+                     # pre_bees_frames + 
+                     (1 | col_no), 
+                   data = tempdatum)
+summary(m.phor.nb0)
+
+anova(m.phor.nb0, m.phor.nb1) # There was a significant interaction between day and treatment (p=0.0001481) when tested by ANOVA. Therefore we analyzed each date separately.
+```
+
+Include this since I did originally
+```{r}
+m.phor.nb2 <- glmer.nb(mites_recov_total ~ 
+                     trt + 
+                     days + 
+                     trt:days + 
+                     # pre_wk_frames + 
+                     pre_bees_frames + 
+                     (1 | col_no), 
+                   data = tempdatum)
+summary(m.phor.nb2)
+```
+
+
+Emmeans saved to an object to send to ggplot for plotting
+```{r}
+emplot_phor <- emmip(m.phor.nb1, trt~days, type = "response", CIs = TRUE, plotit = FALSE)
+emplot_phor$days <- as.numeric(as.character(emplot_phor$days))
+emplot_phor$trt <- factor(emplot_phor$trt, levels = c("Apivar", "AEC", "Apiguard_Api"))
+levels(emplot_phor$trt) # check order of factors
+```
+
+Emmeans to make statistical comparisons between treatments within day
+P-values and estimates of effect size ("times as many Varroa per sample") come from here.
+```{r}
+emmeans(m.phor.nb1, pairwise ~ trt | days, type = "response")$contrasts
+confint(emmeans(m.phor.nb1, pairwise ~ trt | days, type = "response"))$contrasts
+```
+
+```{r}
+emmeans(m.phor.nb2, pairwise ~ trt | days, type = "response")$contrasts
+confint(emmeans(m.phor.nb2, pairwise ~ trt | days, type = "response"))$contrasts
+```
+
+DAY-0 SUMMARY
+On Day-0 we did not observe any significant differences across treatment groups (p>0.98).
+
+DAY-21 SUMMARY
+On Day-21, there was a trend toward fewer mites in combination-treated colonies than in Apivar-treated colonies (though not significantly; p = 0.17).
+
+We also found that AEC colonies had significantly fewer mites than either Apivar or combination-treated colonies. 
+
+AEC colonies had 0.20 times as many mites (0.086-0.49; 95%C.L.) as Apivar colonies (p=0.0001)
+
+AEC colonies had 0.35 times as many mites (0.15-0.86; 95%C.L.) as combination-treated colonies (p=0.018).
+
+Combination-treated colonies had 0.58 times as many mites (0.28-1.18; 95%C.L.) as Apivar-treated colonies; however, this result was not statistically significant (p=0.17)
+
+DAY-42 SUMMARY
+On Day-42 we found that combination treated colonies had a trend toward lower mite counts than Apivar treated colonies, though this was not statistically significant (p=0.13). Combination treated colonies had significantly lower mite counts than AEC treated colonies (p=0.031). We did not observe a difference between Apivar and AEC treated colonies (p=0.84).
+
+Combination treated colonies had 0.55 times the number of mites (0.27-1.13; 95%C.L.) as Apivar treated colonies, though this was not statistically significant (p=0.13).
+
+Combination treated colonies had 0.47 times the number of mites (0.23-0.95; 95%C.L.) as AEC treated colonies (p=0.031).
+
+Plotting
+```{r}
+
+```
 
 
